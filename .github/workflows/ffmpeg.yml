@@ -1,0 +1,34 @@
+name: 'FFmpeg'
+
+on:
+  workflow_dispatch:
+    inputs:
+      fileid:
+        description: 'File IDs (comma separated)'
+        type: string
+        required: true
+      filetype:
+        description: 'Filetype'
+        type: string
+        required: true
+
+jobs:
+  ffmpeg:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install
+      shell: bash
+      run: |
+        exit 0
+    - name: Download
+      shell: bash
+      run: |
+        exit 0
+    - name: Process
+      shell: bash
+      run: |
+        exit 0
+    - name: Upload
+      shell: bash
+      run: |
+        exit 0
