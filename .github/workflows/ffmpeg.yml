@@ -1,0 +1,67 @@
+name: 'FFmpeg'
+
+on:
+  workflow_dispatch:
+    inputs:
+      fileid:
+        description: 'File IDs (comma separated)'
+        type: string
+        required: true
+      filetype:
+        description: 'Filetype (comma separated)'
+        type: string
+        required: true
+
+jobs:
+  ffmpeg:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install
+      shell: bash
+      run: |
+        curl -sSLo "latest.json" --header "Authorization: token ${{ secrets.WORKFLOW_TOKEN }}" https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest
+        ffmpeg_download=$(cat latest.json | python -c "import sys, json; print(list(filter(lambda x: x['name'].endswith('-linux64-gpl.tar.xz'), json.load(sys.stdin)['assets']))[0]['browser_download_url'])")
+        rm latest.json
+        curl -sSLo "ffmpeg-master-latest-linux64-gpl.tar.xz" --header "Authorization: token ${{ secrets.WORKFLOW_TOKEN }}" "$ffmpeg_download"
+        mkdir "ffmpeg"
+        tar -xJf "ffmpeg-master-latest-linux64-gpl.tar.xz" --strip-components=1 -C "ffmpeg"
+        rm "ffmpeg-master-latest-linux64-gpl.tar.xz"
+    - name: Download
+      shell: bash
+      run: |
+        IFS=',' read -r -a fileid_array <<< '${{ inputs.fileid }}'
+        IFS=',' read -r -a filetype_array <<< '${{ inputs.filetype }}'
+        for i in ${!fileid_array[@]}; do
+          libranaut_full_id=$(printf '%07d' "${fileid_array[$i]}")
+          libranaut_dir_id=${libranaut_full_id::-3}
+          libranaut_file_id=${libranaut_full_id: -3}
+          libranaut_in_file="orig.${filetype_array[$i]}"
+          curl -sSo "orig$i.${filetype_array[$i]}" "${{ secrets.WORKFLOW_DOWNLOAD }}$libranaut_dir_id/$libranaut_file_id/$libranaut_in_file"
+        done
+    - name: Process
+      shell: bash
+      run: |
+        IFS=',' read -r -a fileid_array <<< '${{ inputs.fileid }}'
+        IFS=',' read -r -a filetype_array <<< '${{ inputs.filetype }}'
+        if [ ${!fileid_array[@]} -gt 1 ]; then
+          echo 'ffconcat version 1.0' > orig.ffcat
+          for i in ${!fileid_array[@]}; do
+            ./ffmpeg/bin/ffmpeg -hide_banner -v fatal -nostats -y -bitexact -i "orig$i.${filetype_array[$i]}" -vn -sn -dn -map_metadata -1 -map 0:a:0 -c:a libmp3lame -b:a 320k -ar 44100 -ac 2 "new$i.mp3" </dev/null
+            rm "orig$i.${filetype_array[$i]}"
+            mv "new$i.mp3" "orig$i.mp3"
+            echo "file orig$i.mp3" >> orig.ffcat
+          done
+          ./ffmpeg/bin/ffmpeg -hide_banner -v fatal -nostats -y -bitexact -i orig.ffcat -vn -sn -dn -map_metadata -1 -c copy orig.mp3
+          rm orig.ffcat
+          for i in ${!fileid_array[@]}; do
+            rm "orig$i.mp3"
+          done
+        else
+          ./ffmpeg/bin/ffmpeg -hide_banner -v fatal -nostats -y -bitexact -i "orig0.${filetype_array[0]}" -vn -sn -dn -map_metadata -1 -map 0:a:0 -c:a libmp3lame -b:a 320k -ar 44100 -ac 2 "orig.mp3" </dev/null
+          rm "orig0.${filetype_array[0]}"
+        fi
+        ./ffmpeg/bin/ffprobe -hide_banner -v quiet -select_streams a:0 -show_entries stream=duration -of default=noprint_wrappers=1:nokey=1 -sexagesimal orig.mp3 > dur.txt
+    - name: Upload
+      shell: bash
+      run: |
+        curl -sS -X POST -H "Content-Type: multipart/form-data" -F "data=@orig.mp3" -F "dur=@dur.txt" "${{ secrets.WORKFLOW_UPLOAD }}${{ inputs.fileid }}"
