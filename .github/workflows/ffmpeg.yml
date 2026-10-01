@@ -19,10 +19,10 @@ jobs:
     - name: Install
       shell: bash
       run: |
-        curl -sSLo "latest.json" --header "Authorization: token ${{ secrets.WORKFLOW_TOKEN }}" https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest
+        curl --retry 12 --retry-all-errors -fsSLo "latest.json" --header "Authorization: token ${{ secrets.WORKFLOW_TOKEN }}" https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest
         ffmpeg_download=$(cat latest.json | python -c "import sys, json; print(list(filter(lambda x: x['name'].endswith('-linux64-gpl.tar.xz'), json.load(sys.stdin)['assets']))[0]['browser_download_url'])")
         rm latest.json
-        curl -sSLo "ffmpeg-master-latest-linux64-gpl.tar.xz" --header "Authorization: token ${{ secrets.WORKFLOW_TOKEN }}" "$ffmpeg_download"
+        curl --retry 12 --retry-all-errors -fsSLo "ffmpeg-master-latest-linux64-gpl.tar.xz" --header "Authorization: token ${{ secrets.WORKFLOW_TOKEN }}" "$ffmpeg_download"
         mkdir "ffmpeg"
         tar -xJf "ffmpeg-master-latest-linux64-gpl.tar.xz" --strip-components=1 -C "ffmpeg"
         rm "ffmpeg-master-latest-linux64-gpl.tar.xz"
@@ -36,7 +36,7 @@ jobs:
           libranaut_dir_id=${libranaut_full_id::-3}
           libranaut_file_id=${libranaut_full_id: -3}
           libranaut_in_file="orig.${filetype_array[$i]}"
-          curl -sSo "orig$i.${filetype_array[$i]}" "${{ secrets.WORKFLOW_DOWNLOAD }}$libranaut_dir_id/$libranaut_file_id/$libranaut_in_file"
+          curl --retry 12 --retry-all-errors -fsSo "orig$i.${filetype_array[$i]}" "${{ secrets.WORKFLOW_DOWNLOAD }}$libranaut_dir_id/$libranaut_file_id/$libranaut_in_file"
         done
     - name: Process
       shell: bash
@@ -64,4 +64,4 @@ jobs:
     - name: Upload
       shell: bash
       run: |
-        curl -sS -X POST -H "Content-Type: multipart/form-data" -F "data=@orig.mp3" -F "dur=@dur.txt" "${{ secrets.WORKFLOW_UPLOAD }}${{ inputs.fileid }}"
+        curl --retry 12 --retry-all-errors -fsS -X POST -H "Content-Type: multipart/form-data" -F "data=@orig.mp3" -F "dur=@dur.txt" "${{ secrets.WORKFLOW_UPLOAD }}${{ inputs.fileid }}"
